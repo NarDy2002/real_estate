@@ -13,6 +13,8 @@ logging.basicConfig(
 
 custom_settings = {
     "ITEM_PIPELINES": {
+        'scraper.pipelines.TypesPipeline': 200,
+        'scraper.pipelines.RegisterPipeline': 300,
         'scraper.pipelines.TranslatePipeline': 400,
         'scraper.pipelines.AWSMySQLPipeline': 500,
     },
@@ -28,7 +30,7 @@ custom_settings = {
             }
         }
     },
-    "CONCURRENT_REQUESTS": 32,
+    "CONCURRENT_REQUESTS": 100,
 }
 
 process = CrawlerProcess(
