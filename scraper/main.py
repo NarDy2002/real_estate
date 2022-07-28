@@ -14,6 +14,7 @@ logging.basicConfig(
 custom_settings = {
     "ITEM_PIPELINES": {
         'scraper.pipelines.TranslatePipeline': 400,
+        'scraper.pipelines.AWSMySQLPipeline': 500,
     },
 
     "FEEDS": {
