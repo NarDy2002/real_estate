@@ -11,8 +11,10 @@ import os
 import logging
 from dotenv import load_dotenv
 
+from scrapy.exceptions import DropItem
+
 import mysql.connector
-from mysql.connector import IntegrityError
+from mysql.connector import IntegrityError, InterfaceError, DatabaseError
 
 from googletrans import Translator
 
@@ -29,6 +31,82 @@ class TypesPipeline:
         item["Square"] = float(item.get("Square", "0"))
 
         return item
+
+
+class RegisterPipeline:
+
+    def __init__(self):
+
+        logging.log(logging.INFO, "Registration pipeline: Initialization")
+
+        self.connection = mysql.connector.connect(
+
+            host=os.getenv("AWS_DB_ENDPOINT"),
+            port=os.getenv("AWS_MYSQL_PORT"),
+            user=os.getenv("AWS_DB_USER"),
+            password=os.getenv("AWS_DB_PASSWORD"),
+            database=os.getenv("AWS_DB_NAME")
+
+        )
+
+        logging.log(
+            logging.INFO, "Registration pipeline: AWS connection established")
+
+        self.cursor = self.connection.cursor()
+
+        self.prev_ids = set()
+        self.cur_ids = set()
+
+        try:
+            self.cursor.execute(
+                """
+                SELECT ID FROM estate;
+                """
+            )
+
+            self.prev_ids = {x[0] for x in self.cursor.fetchall()}
+        except InterfaceError as e:
+            self.prev_ids = {}
+
+    def process_item(self, item, spider):
+
+        logging.log(logging.INFO, "Registration pipeline: Checking item")
+
+        self.cur_ids.add(item["ID"])
+
+        if item["ID"] in self.prev_ids:
+            raise DropItem(
+                "Registration pipeline: Item is already in database")
+
+        logging.log(
+            logging.INFO, "Registration pipeline: Item registration is successfull")
+
+        return item
+
+    def close_spider(self, spider):
+
+        logging.log(
+            logging.INFO, "Registration pipeline: Checkout of outdated items")
+
+        outdated_ids = self.prev_ids - self.cur_ids
+
+        logging.log(
+            logging.INFO, f"{len(outdated_ids)} listings are outdated.")
+
+        try:
+            for outdated_id in outdated_ids:
+                self.cursor.execute(
+                    f"""
+                    
+                DELETE FROM estate WHERE ID = {str(outdated_id)}
+                
+                """
+                )
+        except DatabaseError:
+            logging.INFO, "Registration pipeline: Deletion is not completed, try again"
+        else:
+            self.connection.commit()
+            logging.log(logging.INFO, "Outdated listings successfully deleted")
 
 
 class TranslatePipeline:
@@ -49,8 +127,8 @@ class TranslatePipeline:
 
 
 class AWSMySQLPipeline:
+
     def __init__(self):
-        logging.log(logging.INFO, "AWS pipeline init")
         self.connection = mysql.connector.connect(
 
             host=os.getenv("AWS_DB_ENDPOINT"),
@@ -60,14 +138,18 @@ class AWSMySQLPipeline:
             database=os.getenv("AWS_DB_NAME")
 
         )
+
         logging.log(logging.INFO, "AWS pipeline connection established")
-        self.cur = self.connection.cursor()
+
+        self.cursor = self.connection.cursor()
+        logging.log(logging.INFO, "AWS pipeline initialization")
         self.create_table()
 
     def create_table(self):
         logging.log(logging.INFO, "AWS pipeline tables creation")
-        self.cur.execute(
+        self.cursor.execute(
             """
+
             CREATE TABLE IF NOT EXISTS estate(
                 ID              INT PRIMARY KEY NOT NULL,
                 TITLE           TEXT,
@@ -81,23 +163,26 @@ class AWSMySQLPipeline:
                 SQUARE          REAL,
                 N_ROOMS         REAL,
                 URL             TEXT
-                ) 
+                )
             """
         )
-        self.cur.execute(
+        self.cursor.execute(
             """
+
             CREATE TABLE IF NOT EXISTS images(
-                URL TEXT ,
+                URL TEXT,
                 MESSAGE_ID INT NOT NULL
             )
+
             """
         )
-        logging.log(logging.INFO, "AWS pipeline tables created")
+
+        logging.log(logging.INFO, "AWS pipeline tables are created")
 
     def process_item(self, item, spider):
         logging.log(logging.INFO, "AWS pipeline item processing")
         try:
-            self.cur.execute("""
+            self.cursor.execute("""
                 INSERT INTO estate
                     (   ID,
                         TITLE,
@@ -112,27 +197,28 @@ class AWSMySQLPipeline:
                         N_ROOMS,
                         URL)
                 VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
-                             (
-                                 item.get("ID", ""),
-                                 item.get("Title", ""),
-                                 item.get("Town", ""),
-                                 item.get("Description", ""),
-                                 item.get("Posting_info", ""),
-                                 item.get("Type", ""),
-                                 item.get("Payment", ""),
-                                 item.get("Postal", ""),
-                                 item.get("Address", ""),
-                                 item.get("Square", ""),
-                                 item.get("N_rooms", ""),
-                                 item.get("URL", "")
-                             ))
-            logging.log(logging.INFO, "AWS pipeline estate message added")
-            print("hello")
+                                (
+                                    item.get("ID", ""),
+                                    item.get("Title", ""),
+                                    item.get("Town", ""),
+                                    item.get("Description", ""),
+                                    item.get("Posting_info", ""),
+                                    item.get("Type", ""),
+                                    item.get("Payment", ""),
+                                    item.get("Postal", ""),
+                                    item.get("Address", ""),
+                                    item.get("Square", ""),
+                                    item.get("N_rooms", ""),
+                                    item.get("URL", "")
+                                ))
+
+            logging.log(logging.INFO, "Estate listing is added")
+
             for img_url in item.get("image_urls", []):
 
                 print(img_url)
 
-                self.cur.execute(
+                self.cursor.execute(
                     """
                     INSERT INTO images(
                         URL,
@@ -145,12 +231,12 @@ class AWSMySQLPipeline:
                         item.get("ID", "")
                     )
                 )
-                logging.log(logging.INFO, "AWS pipeline img message added")
+                logging.log(logging.INFO, "Images are added")
 
         except IntegrityError as e:
             print(e)
         else:
             self.connection.commit()
-            logging.log(logging.INFO, "AWS pipeline additions commited")
+            logging.log(logging.INFO, "Changes are successfully commited")
 
         return item
