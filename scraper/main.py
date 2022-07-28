@@ -11,6 +11,25 @@ logging.basicConfig(
     level=logging.INFO
 )
 
+custom_settings = {
+    "ITEM_PIPELINES": {
+        'scraper.pipelines.TranslatePipeline': 400,
+    },
+
+    "FEEDS": {
+        'items.json': {
+            'format': 'json',
+            'encoding': 'utf8',
+            'store_empty': False,
+            'indent': 4,
+            'item_export_kwargs': {
+                'export_empty_fields': True,
+            }
+        }
+    },
+    "CONCURRENT_REQUESTS": 32,
+}
+
 process = CrawlerProcess(
     settings=custom_settings
 )
