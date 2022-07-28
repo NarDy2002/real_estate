@@ -21,6 +21,16 @@ from googletrans import Translator
 load_dotenv(".env")
 
 
+class TypesPipeline:
+    def process_item(self, item, spider):
+        item["ID"] = int(item["ID"])
+        item["Payment"] = float(item.get("Payment", "0"))
+        item["Postal"] = float(item.get("Postal", "0"))
+        item["Square"] = float(item.get("Square", "0"))
+
+        return item
+
+
 class TranslatePipeline:
     def process_item(self, item, spider):
 
