@@ -68,6 +68,8 @@ def preprocess_date(text: str) -> str:
 
 def preprocess_payment(text: str) -> str:
     # Takes only part with money amount, refactors it
+    if "Auf Anfrage" in text:
+        return ""
     return text.split('.')[0].replace(f"\'", "")
 
 
