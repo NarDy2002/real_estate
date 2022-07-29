@@ -20,7 +20,7 @@ from googletrans import Translator
 
 
 # Load environmental variables
-load_dotenv(".env")
+load_dotenv("scraper/.env")
 
 
 class TypesPipeline:
